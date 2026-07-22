@@ -6,16 +6,14 @@
 # DB_USER
 # DB_PASS
 # DB_NAME
-
+import asyncio
 import os
 from dataclasses import asdict
 
 from dotenv import load_dotenv
 from telethon import TelegramClient, events
 from telethon.tl.custom import Button
-import mysql.connector
-
-from telethon.tl.types import ReplyKeyboardMarkup, KeyboardButton
+#import mysql.connector
 
 load_dotenv()
 
@@ -28,34 +26,81 @@ dbUser = os.getenv('DB_USER')
 dbPass = os.getenv('DB_PASS')
 dbName = os.getenv('DB_NAME')
 
-db = mysql.connector.connect(
-  host=dbHost,
-  user=dbUser,
-  password=dbPass,
-  database=dbName
-)
+#db = mysql.connector.connect(
+#  host=dbHost,
+#  user=dbUser,
+#  password=dbPass,
+#  database=dbName
+#)
 
 # Create the client and the session called session_master. We start the session as the Bot (using bot_token)
 client = TelegramClient('./sessions/session_master', apiId, apiHash).start(bot_token=botToken)
 
-def query(query: str):
-    cursor = db.cursor()
-    cursor.execute(query)
-    result = cursor.fetchall()
-    return result[0]
+messagesToBeDeleted = []
+
+#def query(query: str):
+#    cursor = db.cursor()
+#    cursor.execute(query)
+#    result = cursor.fetchall()
+#    return result[0]
 
 # Define the /start command
-@client.on(events.NewMessage(pattern='/(?i)start'))
+@client.on(events.NewMessage(pattern='(?i)^/start'))
 async def start(event):
-    print("io laio serpente")
     sender = await event.get_sender()
     user = await client.get_entity(sender.id)
-    text = "Ciao {nome}!".format(nome=user.first_name)
-    await client.send_message(user.id, text)
 
-@client.on(events.NewMessage(pattern='/(?i)prova'))
-async def start(event):
-    sender = await event.get_sender()
-    user = await client.get_entity(sender.id)
-    text = "io laio serpente"
-    await client.send_message(user.id, text)
+    try:
+        async with client.conversation(event.chat_id, timeout=20) as conv:
+
+            keyboard = [
+                [
+                    Button.inline("ℹ️ Informazioni", b"info"),
+                    Button.inline("📝 Crea una nuova lista", b"newList"),
+                ]
+            ]
+
+            text = "Ciao {nome}! Benvenut* in ListBot, come posso aiutarti?".format(nome=user.first_name)
+            messagesToBeDeleted.append(await client.send_message(user.id, text, buttons=keyboard))
+
+    except asyncio.exceptions.TimeoutError:
+        return
+
+    finally:
+        await asyncio.sleep(10)
+        await client.delete_messages(event.chat.id, messagesToBeDeleted)
+        messagesToBeDeleted.clear()
+
+
+@client.on(events.callbackquery.CallbackQuery(data=b"newList"))
+@client.on(events.NewMessage(pattern=r'(?i)^/newList'))
+async def newList(event):
+    await client.delete_messages(event.chat.id, messagesToBeDeleted)
+    messagesToBeDeleted.clear()
+
+    try:
+        if isinstance(event, events.CallbackQuery.Event):
+            await event.answer()
+        else:
+            messagesToBeDeleted.append(event.message)
+
+        async with client.conversation(event.chat_id, timeout=60) as conv:
+            messagesToBeDeleted.append(await conv.send_message("Come vuoi chiamare la lista?"))
+
+            response = await conv.get_response()
+            messagesToBeDeleted.append(response)
+            name = response.text
+
+            messagesToBeDeleted.append(await conv.send_message(f"Perfetto! Ho creato la lista \"{name}\"."))
+
+    except asyncio.exceptions.TimeoutError:
+        messagesToBeDeleted.append(await event.respond("⏳ Tempo scaduto! Procedura annullata."))
+
+    finally:
+        await asyncio.sleep(10)
+        await client.delete_messages(event.chat.id, messagesToBeDeleted)
+        messagesToBeDeleted.clear()
+
+if __name__ == '__main__':
+    print("Il bot è stato avviato con successo!")
+    client.run_until_disconnected()
