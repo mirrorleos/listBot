@@ -1,0 +1,29 @@
+services:
+  mysql-db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASS}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASS}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - ./mysql:/var/lib/mysql
+    env_file:
+      - .env
+  telegram-bot:
+    build:
+      dockerfile: Dockerfile
+    volumes:
+      - ./bot:/bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      mysql-db:
+        condition: service_healthy

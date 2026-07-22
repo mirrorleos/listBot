@@ -216,3 +216,14 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# File generati da Finder (memorizzano posizione icone, viste, ecc.)
+.DS_Store
+.AppleDouble
+.LSOverride
+
+.env
+/mysql
+/bot/sessions/*
+/.idea
+
